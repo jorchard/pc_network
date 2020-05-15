@@ -4,6 +4,7 @@ import copy
 import pickle
 import torch
 
+
 dtype = torch.float32
 if torch.cuda.is_available():
     device = torch.device("cuda:0") # Uncomment this to run on GPU
@@ -33,23 +34,23 @@ class PCLayer:
         self.probe_on = False
         self.x_history = []
 
-    #=======
-    # Save and Load
-    def Save(self, fp):
-        '''
-         layer.Save(fp)
-         Saves the layer to the file pointed to by fp.
-        '''
-        pickle.dump(self, fp)
 
-    @classmethod
-    def Load(cls, fp):
+    #=======
+    # Dynamics
+    def RateOfChange(self, current):
+        self.dxdt += current
+
+    def Decay(self):
         '''
-         layer = PCLayer.Load(fp)
-         Loads a layer from the file pointed to by fp.
+         lyr.Decay()
+         Adds the decay term to the right-hand side of the differential
+         equation, updating dxdt.
         '''
-        lyr = pickle.load(fp)
-        return lyr
+        self.dxdt -= self.x_decay*self.x
+
+    def Step(self, dt=0.001):
+        self.x += self.dxdt*dt/self.tau
+        self.dxdt.zero_()
 
 
     #=======
@@ -60,6 +61,7 @@ class PCLayer:
             del self.x, self.dxdt, self.x_history
             self.x_history = []
             self.x = torch.zeros(batchsize, self.n, dtype=torch.float32, device=device)
+            self.dxdt = torch.zeros(batchsize, self.n, dtype=torch.float32, device=device)
 
     def Reset(self, random=0.):
         del self.x_history
@@ -68,6 +70,11 @@ class PCLayer:
             self.x.zero_()
         else:
             self.x = torch.randn(self.x.shape[0], self.x.shape[1], dtype=torch.float32, device=device) * random
+        self.dxdt.zero_()
+
+    def SetState(self, x):
+        #self.x = torch.tensor(x, dtype=torch.float32, device=device)
+        self.x = x.clone().detach()
 
     def Probe(self, bool):
         self.probe_on = bool

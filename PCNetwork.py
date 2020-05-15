@@ -30,7 +30,6 @@ class PCNetwork():
         with open(fname, 'wb') as fp:
             pickle.dump(self, fp)
 
-
     @classmethod
     def Load(cls, fname):
         with open(fname, 'rb') as fp:
@@ -38,6 +37,40 @@ class PCNetwork():
         return net
 
 
+    #=======
+    # Dynamics
+    def RateOfChange(self):
+        '''
+         net.RateOfChange()
+         Updates the input currents to all nodes in the network
+        '''
+        for c in self.con:
+            c.RateOfChange()
+
+        for l in self.lyr:
+            l.Decay()
+
+
+    def Step(self, dt=0.001):
+        for l in self.lyr:
+            l.Step(dt=dt)
+        for c in self.con:
+            l.Step(dt=dt)
+
+
+    #=======
+    # Setting behaviours
+    def Learning(self, learning_on):
+        '''
+         net.Learning(learning_on)
+         Turn learning on (True) or off (False) for all 'general' connections.
+        '''
+        for c in self.con:
+            c.Learning(learning_on)
+
+    def SetInput(self, x):
+        self.Allocate(x)
+        self.lyr[0].SetState(x)
 
     #=======
     # Building utilities
@@ -66,7 +99,7 @@ class PCNetwork():
         elif type=='1to1':
             c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], act_text='identity')
             c.SetIdentity()
-            
+
         self.con.append(c)
 
 
