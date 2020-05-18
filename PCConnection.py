@@ -37,7 +37,7 @@ class PCConnection():
             self.e = []
             self.v_idx = -99
             self.e_idx = -99
-        self.learn = True
+        self.learning_on = False
         self.gamma = 0.1       # Learning time constant
         self.SetActivationFunction(act_text)
 
@@ -68,7 +68,7 @@ class PCConnection():
         '''
         self.CurrentTo_e()
         self.CurrentTo_v()
-        if self.learn:
+        if self.learning_on:
             self.RateOfChange_Weights()
 
     @abstractmethod
@@ -137,6 +137,10 @@ class DenseConnection(PCConnection):
         PCConnection.__init__(self, v=v, e=e, act_text=act_text)
 
         self.type = type
+        if self.type=='1to1':
+            self.learning_on = False
+        else:
+            self.learning_on = True
 
         # Create weight matrices
         self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=device)
@@ -151,12 +155,13 @@ class DenseConnection(PCConnection):
         self.W_decay = 0.
 
 
+
     #=======
     # Dynamics
-    def CurrentTo_e(self):
+    def CurrentTo_v(self):
         self.v.RateOfChange( self.e.x@self.W * self.sigma_p() )
 
-    def CurrentTo_v(self):
+    def CurrentTo_e(self):
         self.e.RateOfChange( -self.sigma()@self.M )
 
     def RateOfChange_Weights(self):
@@ -164,26 +169,34 @@ class DenseConnection(PCConnection):
          densecon.RateOfChange_Weights()
          Sets the derivative of the weights (w.r.t. time), including decay.
         '''
-        blah = self.sigma().transpose(1,0) @ self.e.x
-        self.dMdt = blah - self.M_decay*self.M
-        self.dWdt = blah.transpose(1,0) - self.W_decay*self.W
+        sigmax_times_e = self.sigma().transpose(1,0) @ self.e.x
+        self.dMdt = sigmax_times_e - self.M_decay*self.M
+        self.dWdt = sigmax_times_e.transpose(1,0) - self.W_decay*self.W
 
     def Step(self, dt=0.001):
-        if self.learn:
-            self.M += dMdt*dt/self.gamma
+        if self.learning_on:
+            self.M += self.dMdt*dt/self.gamma
+            self.W += self.dWdt*dt/self.gamma
 
     #=======
     # Setting behaviours
     def Learning(self, learning_on):
-        self.learn = learning_on
+        if self.type=='general':
+            self.learning_on = learning_on
+        else:
+            self.learning_on = False
 
 
     #=======
     # Weight matrices
     def SetIdentity(self):
         assert (self.v.n==self.e.n), 'Cannot use identity matrix: Number of nodes do not match'
-        self.M = -torch.eye(self.v.n)
-        self.W = -torch.eye(self.v.n)
+        if self.type=='general':
+            self.M = torch.eye(self.v.n)
+            self.W = torch.eye(self.v.n)
+        elif self.type=='1to1':
+            self.M = -torch.eye(self.v.n)
+            self.W = -torch.eye(self.v.n)
 
 
 

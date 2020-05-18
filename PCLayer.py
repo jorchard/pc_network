@@ -1,8 +1,9 @@
 
 import numpy as np
-import copy
+from copy import deepcopy
 import pickle
 import torch
+import matplotlib.pyplot as plt
 
 
 dtype = torch.float32
@@ -30,10 +31,25 @@ class PCLayer:
         self.batchsize = 0
         self.idx = -99       # index (for use in PCNetwork class)
 
+        self.clamped = False
+
         # Probe variables
         self.probe_on = False
         self.x_history = []
 
+
+    #=======
+    # Setting behaviours
+    def SetTau(self, tau):
+        self.tau = tau
+
+    def Clamped(self, is_clamped):
+        '''
+         lyr.Clamped(is_clamped)
+         Clamps (True) or unclamps (False) the value stored in the layer.
+         If it is clamped, the values are not updated.
+        '''
+        self.clamped = is_clamped
 
     #=======
     # Dynamics
@@ -49,8 +65,11 @@ class PCLayer:
         self.dxdt -= self.x_decay*self.x
 
     def Step(self, dt=0.001):
-        self.x += self.dxdt*dt/self.tau
-        self.dxdt.zero_()
+        if not self.clamped:
+            self.x += self.dxdt*dt/self.tau
+        #self.dxdt.zero_()
+        if self.probe_on:
+            self.x_history.append(deepcopy(self.x.numpy()))
 
 
     #=======
@@ -72,19 +91,28 @@ class PCLayer:
             self.x = torch.randn(self.x.shape[0], self.x.shape[1], dtype=torch.float32, device=device) * random
         self.dxdt.zero_()
 
+    def SetDecay(self, x_decay):
+        self.x_decay = x_decay
+
     def SetState(self, x):
         #self.x = torch.tensor(x, dtype=torch.float32, device=device)
         self.x = x.clone().detach()
 
     def Probe(self, bool):
         self.probe_on = bool
+        if not self.probe_on:
+            del self.x_history
+            self.x_history = []
 
-    def Record(self):
+
+    #=======
+    # Utilities
+    def Plot(self, t_history, idx=0):
+        if np.isscalar(idx):
+            idx = [idx]
         if self.probe_on:
-            self.x_history.append( np.array(self.v.cpu())[0] )
-
-
-
+            for i in idx:
+                plt.plot(t_history, np.array(self.x_history)[:,i,:])
 
 
 

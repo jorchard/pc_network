@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import pickle
+import matplotlib.pyplot as plt
 import PCLayer
 import PCConnection
 
@@ -21,7 +22,7 @@ class PCNetwork():
         self.batchsize = 0  # size of batch
         self.t_history = [] # for recording (probes)
         self.t = 0.         # current simulation time
-
+        self.probe_on = False # becomes True if at least one layer has a probe on
 
 
     #=======
@@ -39,23 +40,76 @@ class PCNetwork():
 
     #=======
     # Dynamics
+    def Learn(self, x, t, T, dt=0.001, epochs=5, batchsize=10):
+        '''
+         net.Learn(x, t, T, dt=0.001, epochs=5, batchsize=10)
+         Perform learning on the network using x as the input and t as the
+         targets. Hold each input for T seconds, using a timestep of dt.
+        '''
+        self.Learning(True)
+        self.lyr[0].Clamped(True)
+        self.lyr[-1].Clamped(True)
+
+        for k in range(epochs):
+            batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
+            for b in batches:
+                self.SetInput(b[0])
+                self.SetOutput(b[1])
+            self.Run(T, dt=0.001)
+            print('Epoch: '+str(k))
+
+
+    def Predict(self, x, T, dt=0.001):
+        self.Learning(False)
+        self.lyr[0].Clamped(True)
+        self.lyr[-1].Clamped(False)
+        self.SetInput(x)
+        self.Run(T, dt=dt)
+        return self.lyr[-1].x
+
+
+    def Run(self, T, dt=0.001):
+        '''
+         net.Run(T, dt=0.001)
+         Simulates the network for T seconds using a time step of dt.
+         The network state is continued from the previous run, if one
+         exists. Calling net.Reset() removes the previous run.
+        '''
+        self.probe_on = False
+        for l in self.lyr:
+            self.probe_on = self.probe_on or l.probe_on
+
+        t_start = self.t
+        while self.t < t_start + T:
+            self.RateOfChange()
+            self.Step(dt=dt)
+            self.t += dt
+            if self.probe_on:
+                self.t_history.append(self.t)
+
     def RateOfChange(self):
         '''
          net.RateOfChange()
          Updates the input currents to all nodes in the network
         '''
+        for l in self.lyr:
+            l.dxdt.zero_()
+
+        # Deliver current across connections
         for c in self.con:
             c.RateOfChange()
-
+        # Apply activity decay (where appropriate)
         for l in self.lyr:
             l.Decay()
 
 
     def Step(self, dt=0.001):
+        # Increment the state of each layer
         for l in self.lyr:
             l.Step(dt=dt)
+        # Increment the connection weights (potentially)
         for c in self.con:
-            l.Step(dt=dt)
+            c.Step(dt=dt)
 
 
     #=======
@@ -71,6 +125,14 @@ class PCNetwork():
     def SetInput(self, x):
         self.Allocate(x)
         self.lyr[0].SetState(x)
+
+    def SetOutput(self, t):
+        self.Allocate(t)
+        self.lyr[-1].SetState(t)
+
+    def SetTau(self, tau):
+        for l in self.lyr:
+            l.SetTau(tau)
 
     #=======
     # Building utilities
@@ -97,7 +159,7 @@ class PCNetwork():
         if type=='general':
             c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], sym=sym, act_text=act_text)
         elif type=='1to1':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], act_text='identity')
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity')
             c.SetIdentity()
 
         self.con.append(c)
@@ -144,7 +206,81 @@ class PCNetwork():
             l.Reset(random=random)
 
 
+    #=======
+    # Utilities
+    def Plot(self, idx=0):
+        '''
+         net.Plot(idx=0)
+         Plots the time evolution of sample idx in the batch.
+         It displays an array of plots, one plot for each layer.
+
+         The plots are in 2 rows, with odd-index layers in the top row,
+         and even-index layers in the bottom row.
+        '''
+        fig = plt.figure(figsize=(10,4), constrained_layout=True)
+        n_valnodes = np.ceil(self.n_layers/2.)
+        gs = plt.GridSpec(2, int(2*n_valnodes), figure=fig)
+        r,c = 0,0
+        for l in self.lyr:
+            fig.add_subplot(gs[r,c:c+2])
+            l.Plot(self.t_history, idx=idx)
+            if r==0 and c==0:
+                plt.ylabel('v')
+            elif r==1 and c==1:
+                plt.ylabel('e')
+            if r==1:
+                plt.xlabel('Time (s)')
+            r = (r+1)%2
+            c += 1
+        return fig
 
 
+
+
+
+
+
+
+#============================================================
+#
+# Untility functions
+#
+#============================================================
+def MakeBatches(data_in, data_out, batchsize=10, shuffle=True):
+    '''
+        batches = MakeBatches(data_in, data_out, batchsize=10, shuffle=True)
+
+        Breaks up the dataset into batches of size batchsize.
+
+        Inputs:
+          data_in    is a list of inputs
+          data_out   is a list of outputs
+          batch size is the number of samples in each batch
+          shuffle    shuffle samples first (True)
+
+        Output:
+          batches is a list containing batches, where each batch is:
+                     [in_batch, out_batch]
+
+
+        Note: The last batch might be incomplete (smaller than batchsize).
+    '''
+    N = len(data_in)
+    r = range(N)
+    if shuffle:
+        r = torch.randperm(N)
+    batches = []
+    for k in range(0, N, batchsize):
+        if k+batchsize<=N:
+            din = data_in[r[k:k+batchsize]]
+            dout = data_out[r[k:k+batchsize]]
+        else:
+            din = data_in[r[k:]]
+            dout = data_out[r[k:]]
+        if isinstance(din, (list, tuple)):
+            batches.append( [torch.stack(din, dim=0).float().to(device) , torch.stack(dout, dim=0).float().to(device)] )
+        else:
+            batches.append( [din.float().to(device) , dout.float().to(device)] )
+    return batches
 
 # end
