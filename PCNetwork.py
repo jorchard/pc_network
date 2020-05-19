@@ -184,6 +184,8 @@ class PCNetwork():
             c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity')
             c.SetIdentity()
 
+        self.lyr[e_idx].SetDecay(1.)  # Set decay of error layer
+        
         self.con.append(c)
 
 

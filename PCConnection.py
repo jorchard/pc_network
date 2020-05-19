@@ -57,6 +57,9 @@ class PCConnection():
         elif self.act_text=='identity':
             self.sigma = self.Identity
             self.sigma_p = self.Identity_p
+        elif self.act_text=='tanh':
+            self.sigma = self.Tanh
+            self.sigma_p = self.Tanh_p
 
 
     #=======
@@ -114,7 +117,6 @@ class PCConnection():
          Returns a tensor the same size as v.x.
         '''
         return 1. / ( 1. + torch.exp(-self.v.x) )
-
     def Logistic_p(self):
         '''
          conn.Logistic_p()
@@ -124,6 +126,22 @@ class PCConnection():
         '''
         h = self.Logistic()
         return h * ( 1. - h )
+
+    def Tanh(self):
+        '''
+         conn.Tanh()
+         Applies the tanh function to the values in layer v.
+         Returns a tensor the same size as v.x.
+        '''
+        return torch.tanh(self.v.x)
+    def Tanh_p(self):
+        '''
+         conn.Tanh_p()
+         Computes the derivative of the tanh function of the values
+         in layer v.
+         Returns a tensor the same size as v.x.
+        '''
+        return 1. - torch.pow(torch.tanh(self.v.x), 2)
 
     def Identity(self):
         return self.v.x
@@ -170,7 +188,7 @@ class DenseConnection(PCConnection):
          densecon.RateOfChange_Weights()
          Sets the derivative of the weights (w.r.t. time), including decay.
         '''
-        sigmax_times_e = self.sigma().transpose(1,0) @ self.e.x
+        sigmax_times_e = ( self.sigma().transpose(1,0) @ self.e.x ) / self.v.batchsize
         self.dMdt = sigmax_times_e - self.M_decay*self.M
         self.dWdt = sigmax_times_e.transpose(1,0) - self.W_decay*self.W
 
@@ -190,7 +208,7 @@ class DenseConnection(PCConnection):
     def SetWeightDecay(self, lam):
         self.M_decay = lam
         self.W_decay = lam
-        
+
 
     #=======
     # Weight matrices
