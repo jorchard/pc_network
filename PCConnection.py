@@ -37,6 +37,8 @@ class PCConnection():
             self.e = []
             self.v_idx = -99
             self.e_idx = -99
+        self.v.SetType('value')
+        self.e.SetType('error')
         self.learning_on = False
         self.gamma = 0.1       # Learning time constant
         self.SetActivationFunction(act_text)
@@ -55,7 +57,6 @@ class PCConnection():
         elif self.act_text=='identity':
             self.sigma = self.Identity
             self.sigma_p = self.Identity_p
-
 
 
     #=======
@@ -186,6 +187,10 @@ class DenseConnection(PCConnection):
         else:
             self.learning_on = False
 
+    def SetWeightDecay(self, lam):
+        self.M_decay = lam
+        self.W_decay = lam
+        
 
     #=======
     # Weight matrices

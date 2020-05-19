@@ -40,23 +40,29 @@ class PCNetwork():
 
     #=======
     # Dynamics
-    def Learn(self, x, t, T, dt=0.001, epochs=5, batchsize=10):
+    def Learn(self, dl, T, dt=0.001, epochs=5):
         '''
-         net.Learn(x, t, T, dt=0.001, epochs=5, batchsize=10)
-         Perform learning on the network using x as the input and t as the
-         targets. Hold each input for T seconds, using a timestep of dt.
+         net.Learn(dl, T, dt=0.001, epochs=5)
+         Perform learning on the network.
+
+         Inputs:
+           dl     a DataLoader object
+           T      how long to hold each sample (in seconds)
+           dt     step size (in seconds)
+           epochs number of epochs
         '''
         self.Learning(True)
         self.lyr[0].Clamped(True)
         self.lyr[-1].Clamped(True)
 
         for k in range(epochs):
-            batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
-            for b in batches:
+            #batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
+            for b in iter(dl):
                 self.SetInput(b[0])
                 self.SetOutput(b[1])
-            self.Run(T, dt=0.001)
+                self.Run(T, dt=0.001)
             print('Epoch: '+str(k))
+
 
 
     def Predict(self, x, T, dt=0.001):
@@ -66,6 +72,14 @@ class PCNetwork():
         self.SetInput(x)
         self.Run(T, dt=dt)
         return self.lyr[-1].x
+
+    def Generate(self, t, T, dt=0.001):
+        self.Learning(False)
+        self.lyr[0].Clamped(False)
+        self.lyr[-1].Clamped(True)
+        self.SetOutput(t)
+        self.Run(T, dt=dt)
+        return self.lyr[0].x
 
 
     def Run(self, T, dt=0.001):
@@ -133,6 +147,14 @@ class PCNetwork():
     def SetTau(self, tau):
         for l in self.lyr:
             l.SetTau(tau)
+
+    def SetActivityDecay(self, lam):
+        for l in self.lyr:
+            l.SetActivityDecay(lam) # does nothing on error layers
+
+    def SetWeightDecay(self, lam):
+        for c in self.con:
+            c.SetWeightDecay(lam)
 
     #=======
     # Building utilities

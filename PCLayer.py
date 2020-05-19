@@ -31,6 +31,7 @@ class PCLayer:
         self.batchsize = 0
         self.idx = -99       # index (for use in PCNetwork class)
 
+        self.type = 'value'
         self.clamped = False
 
         # Probe variables
@@ -42,6 +43,9 @@ class PCLayer:
     # Setting behaviours
     def SetTau(self, tau):
         self.tau = tau
+
+    def SetType(self, ltype):
+        self.type = ltype
 
     def Clamped(self, is_clamped):
         '''
@@ -85,6 +89,8 @@ class PCLayer:
     def Reset(self, random=0.):
         del self.x_history
         self.x_history = []
+        if self.batchsize==0:
+            return
         if random==0.:
             self.x.zero_()
         else:
@@ -93,6 +99,15 @@ class PCLayer:
 
     def SetDecay(self, x_decay):
         self.x_decay = x_decay
+
+    def SetActivityDecay(self, lam):
+        '''
+         lyr.SetActivityDecay(lam)
+         Sets the activity decay to lam, but only on value layers.
+         This call does nothing for error layers.
+        '''
+        if self.type=='value':
+            self.x_decay = lam
 
     def SetState(self, x):
         #self.x = torch.tensor(x, dtype=torch.float32, device=device)
