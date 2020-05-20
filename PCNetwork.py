@@ -26,7 +26,19 @@ class PCNetwork():
         self.blackout = 0.  # How long to wait during a hold before
                             # turning learning on.
         self.learning_on = False # Used to control the blackout period
-        self.dyn_decay = (lambda t: 1.) # Dynamic activity decay
+
+        '''
+        Weight decay
+        The weight decay rate can change as training progresses. It is
+        implemented using 2 numbers:
+          - init_wd: initial weight decay rate, and
+          - drop_wd: fractional drop per epoch
+        Then, if e is the number of epochs, the weight decay is
+          init_wd * np.exp( np.log(1-drop_wd)*e )
+        '''
+        init_wd = 0.
+        drop_wd = 0.
+        self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
 
 
     #=======
@@ -63,11 +75,15 @@ class PCNetwork():
 
         for k in range(epochs):
             #batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
-            for b in iter(dl):
+            n_batches = len(dl)
+            print('Epoch: '+str(k)+' weight decay = '+str(self.WeightDecay(k)))
+            for batch_idx,b in enumerate(dl):
+                epoch_time = k + batch_idx/n_batches
+                #print(epoch_time, self.WeightDecay(epoch_time))
+                self.SetWeightDecay(self.WeightDecay(epoch_time))
                 self.SetInput(b[0])
                 self.SetOutput(b[1])
                 self.Run(T, dt=0.001)
-            print('Epoch: '+str(k))
 
 
 
@@ -105,8 +121,6 @@ class PCNetwork():
             # Learning blackout
             if self.t-t_start > self.blackout:
                 self.learning_on = True
-            # Dynamic decay rates
-            self.SetActivityDecay(self.dyn_decay(torch.tensor(self.t)))
             self.RateOfChange()
             self.Step(dt=dt)
             self.t += dt
@@ -126,7 +140,7 @@ class PCNetwork():
             c.RateOfChange()
         # Apply activity decay (where appropriate)
         for l in self.lyr:
-            l.Decay()
+            l.Decay(self.t)
 
 
     def Step(self, dt=0.001):
@@ -164,6 +178,19 @@ class PCNetwork():
     def SetActivityDecay(self, lam):
         for l in self.lyr:
             l.SetActivityDecay(lam) # does nothing on error layers
+
+    def SetDynamicWeightDecay(self, init_wd, drop_wd):
+        '''
+         net.SetDynamicWeightDecay(init_wd, drop_wd)
+         Sets the weight decay function.
+         The weight decay rate can change as training progresses. It is
+         implemented using 2 numbers:
+           - init_wd: initial weight decay rate, and
+           - drop_wd: fractional drop per epoch
+         Then, if e is the number of epochs, the weight decay is
+           init_wd * np.exp( np.log(1-drop_wd)*e )
+        '''
+        self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
 
     def SetWeightDecay(self, lam):
         for c in self.con:

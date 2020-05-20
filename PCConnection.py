@@ -66,7 +66,7 @@ class PCConnection():
     # Dynamics
     def RateOfChange(self):
         '''
-         con.RateOfChange()
+         con.RateOfChange(t)
          Adds the between-layer connection terms to the derivatives of
          v and e.
         '''
@@ -164,11 +164,12 @@ class DenseConnection(PCConnection):
 
         # Create weight matrices
         self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=device)
-        self.dMdt = torch.zeros_like(self.M)
         if sym:
             self.W = deepcopy(self.M.transpose(1,0))
         else:
             self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=device)
+
+        self.dMdt = torch.zeros_like(self.M)
         self.dWdt = torch.zeros_like(self.W)
 
         self.M_decay = 0.

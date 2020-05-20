@@ -26,13 +26,14 @@ class PCLayer:
         # Node activities
         self.x = []          # state of the node
         self.dxdt = []       # derivatives of nodes (wrt time)
-        self.x_decay = 0.    # decay of node
         self.tau = 0.1       # time constant
         self.batchsize = 0
         self.idx = -99       # index (for use in PCNetwork class)
 
         self.type = 'value'
         self.clamped = False
+
+        self.x_decay = (lambda t: 0.) # Dynamic activity decay
 
         # Probe variables
         self.probe_on = False
@@ -60,13 +61,13 @@ class PCLayer:
     def RateOfChange(self, current):
         self.dxdt += current
 
-    def Decay(self):
+    def Decay(self, t):
         '''
          lyr.Decay()
          Adds the decay term to the right-hand side of the differential
-         equation, updating dxdt.
+         equation, updating dxdt. The input t is the current time.
         '''
-        self.dxdt -= self.x_decay*self.x
+        self.dxdt -= self.x_decay(t)*self.x
 
     def Step(self, dt=0.001):
         if not self.clamped:
@@ -97,17 +98,37 @@ class PCLayer:
             self.x = torch.randn(self.x.shape[0], self.x.shape[1], dtype=torch.float32, device=device) * random
         self.dxdt.zero_()
 
-    def SetDecay(self, x_decay):
-        self.x_decay = x_decay
+    def SetDecay(self, lam):
+        '''
+         lyr.SetDecay(lam)
+         Sets the decay of the layer to lam, whether it is a value layer
+         or an error layer.
+         Inputs:
+           lam   either a scalar, or a function of time
+                 If lam is a function, it should output a scalar.
+        '''
+        if np.isscalar(lam):
+            self.x_decay = (lambda t: lam)
+        else:
+            self.x_decay = lam
 
     def SetActivityDecay(self, lam):
         '''
          lyr.SetActivityDecay(lam)
          Sets the activity decay to lam, but only on value layers.
          This call does nothing for error layers.
+         Inputs:
+           lam   either a scalar, or a function of time
+                 If lam is a function, it should output a scalar.
+
+         For example,
+          lam could be (lambda t: 0.1*np.exp(-t))
         '''
         if self.type=='value':
-            self.x_decay = lam
+            if np.isscalar(lam):
+                self.x_decay = (lambda t: lam)
+            else:
+                self.x_decay = lam
 
     def SetState(self, x):
         #self.x = torch.tensor(x, dtype=torch.float32, device=device)
