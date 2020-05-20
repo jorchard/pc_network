@@ -23,6 +23,10 @@ class PCNetwork():
         self.t_history = [] # for recording (probes)
         self.t = 0.         # current simulation time
         self.probe_on = False # becomes True if at least one layer has a probe on
+        self.blackout = 0.  # How long to wait during a hold before
+                            # turning learning on.
+        self.learning_on = False # Used to control the blackout period
+        self.dyn_decay = (lambda t: 1.) # Dynamic activity decay
 
 
     #=======
@@ -50,6 +54,8 @@ class PCNetwork():
            T      how long to hold each sample (in seconds)
            dt     step size (in seconds)
            epochs number of epochs
+           blackout determines how long to wait during a hold before
+                  turning learning on.
         '''
         self.Learning(True)
         self.lyr[0].Clamped(True)
@@ -93,8 +99,14 @@ class PCNetwork():
         for l in self.lyr:
             self.probe_on = self.probe_on or l.probe_on
 
+        self.learning_on = False
         t_start = self.t
         while self.t < t_start + T:
+            # Learning blackout
+            if self.t-t_start > self.blackout:
+                self.learning_on = True
+            # Dynamic decay rates
+            self.SetActivityDecay(self.dyn_decay(torch.tensor(self.t)))
             self.RateOfChange()
             self.Step(dt=dt)
             self.t += dt
@@ -122,8 +134,9 @@ class PCNetwork():
         for l in self.lyr:
             l.Step(dt=dt)
         # Increment the connection weights (potentially)
-        for c in self.con:
-            c.Step(dt=dt)
+        if self.learning_on:
+            for c in self.con:
+                c.Step(dt=dt)
 
 
     #=======
@@ -156,6 +169,15 @@ class PCNetwork():
         for c in self.con:
             c.SetWeightDecay(lam)
 
+    def SetBlackout(self, t):
+        '''
+         net.SetBlackout(t)
+         Sets the blackout period for learning. The blackout period is
+         how long to wait during a old before turning learning on.
+        '''
+        self.blackout = t
+
+
     #=======
     # Building utilities
     def AddLayer(self, l):
@@ -185,7 +207,7 @@ class PCNetwork():
             c.SetIdentity()
 
         self.lyr[e_idx].SetDecay(1.)  # Set decay of error layer
-        
+
         self.con.append(c)
 
 

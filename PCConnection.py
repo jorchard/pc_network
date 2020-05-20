@@ -108,6 +108,7 @@ class PCConnection():
         pass
 
 
+
     #=======
     # Activation functions
     def Logistic(self):
