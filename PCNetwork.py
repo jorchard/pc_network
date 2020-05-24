@@ -56,31 +56,35 @@ class PCNetwork():
 
     #=======
     # Dynamics
-    def Learn(self, dl, T, dt=0.001, epochs=5):
+    def Learn(self, data, T, dt=0.001, epochs=5):
         '''
-         net.Learn(dl, T, dt=0.001, epochs=5)
+         net.Learn(data, T, dt=0.001, epochs=5)
          Perform learning on the network.
 
          Inputs:
-           dl     a DataLoader object
+           data   a DataLoader object, or a list containing two tensors,
+                  where data[0] are inputs, and data[1] are targets
            T      how long to hold each sample (in seconds)
            dt     step size (in seconds)
            epochs number of epochs
            blackout determines how long to wait during a hold before
                   turning learning on.
         '''
-        self.Learning(True)
+        #self.Learning(True)
         self.lyr[0].Clamped(True)
         self.lyr[-1].Clamped(True)
 
         for k in range(epochs):
             #batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
-            n_batches = len(dl)
+            if type(data) in (list, ):
+                data = [data]
+            n_batches = len(data)
             print('Epoch: '+str(k)+' weight decay = '+str(self.WeightDecay(k)))
-            for batch_idx,b in enumerate(dl):
+            for batch_idx,b in enumerate(data):
                 epoch_time = k + batch_idx/n_batches
                 #print(epoch_time, self.WeightDecay(epoch_time))
                 self.SetWeightDecay(self.WeightDecay(epoch_time))
+                self.ResetState(random=0.5)
                 self.SetInput(b[0])
                 self.SetOutput(b[1])
                 self.Run(T, dt=0.001)
@@ -135,7 +139,8 @@ class PCNetwork():
         for l in self.lyr:
             l.dxdt.zero_()
 
-        # Deliver current across connections
+        # Delivers current across connections
+        # and overwrites dMdt and dWdt if a connection's learning is on.
         for c in self.con:
             c.RateOfChange()
         # Apply activity decay (where appropriate)
@@ -174,6 +179,10 @@ class PCNetwork():
     def SetTau(self, tau):
         for l in self.lyr:
             l.SetTau(tau)
+
+    def SetGamma(self, gamma):
+        for c in self.con:
+            c.SetGamma(gamma)
 
     def SetActivityDecay(self, lam):
         for l in self.lyr:
@@ -214,7 +223,7 @@ class PCNetwork():
         '''
         self.lyr.append(l)
         self.n_layers = len(self.lyr)
-        l.idx = self.n_layers
+        l.idx = self.n_layers-1
 
 
     def Connect(self, v_idx=None, e_idx=None, type='general', sym=False, act_text='logistic'):
@@ -232,6 +241,7 @@ class PCNetwork():
         elif type=='1to1':
             c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity')
             c.SetIdentity()
+            self.lyr[e_idx].SetBias(random=1.)
 
         self.lyr[e_idx].SetDecay(1.)  # Set decay of error layer
 
@@ -272,15 +282,31 @@ class PCNetwork():
          a Gaussian distribution with mean 0 and std specified by the
          input parameter 'random'.
         '''
+        self.ClearHistory()
+        self.ResetState(random=random)
+
+    def ClearHistory(self):
         del self.t_history
         self.t_history = []
         self.t = 0.
         for l in self.lyr:
-            l.Reset(random=random)
+            l.ClearHistory()
 
+    def ResetState(self, random=0.):
+        for l in self.lyr:
+            l.ResetState(random=random)
 
     #=======
     # Utilities
+    def Probe(self, probe_on=True):
+        '''
+         net.Probe(probe_on=True)
+         Turns on (True) or off (False) data history recording for
+         all the layers in the network.
+        '''
+        for l in self.lyr:
+            l.Probe(probe_on)
+
     def Plot(self, idx=0):
         '''
          net.Plot(idx=0)

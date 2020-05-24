@@ -26,6 +26,8 @@ class PCLayer:
         # Node activities
         self.x = []          # state of the node
         self.dxdt = []       # derivatives of nodes (wrt time)
+        # bias (only used for error nodes)
+        self.bias = torch.zeros(self.n, dtype=torch.float32, device=device)
         self.tau = 0.1       # time constant
         self.batchsize = 0
         self.idx = -99       # index (for use in PCNetwork class)
@@ -48,6 +50,7 @@ class PCLayer:
     def SetType(self, ltype):
         self.type = ltype
 
+
     def Clamped(self, is_clamped):
         '''
          lyr.Clamped(is_clamped)
@@ -67,7 +70,7 @@ class PCLayer:
          Adds the decay term to the right-hand side of the differential
          equation, updating dxdt. The input t is the current time.
         '''
-        self.dxdt -= self.x_decay(t)*self.x
+        self.dxdt -= self.x_decay(t)*self.x + self.bias
 
     def Step(self, dt=0.001):
         if not self.clamped:
@@ -88,8 +91,15 @@ class PCLayer:
             self.dxdt = torch.zeros(batchsize, self.n, dtype=torch.float32, device=device)
 
     def Reset(self, random=0.):
-        del self.x_history
-        self.x_history = []
+        self.ClearHistory()
+        self.ResetState(random=random)
+
+    def ResetState(self, random=0.):
+        '''
+         lyr.ResetState(random=0.)
+         Resets the nodes of the layer to Gaussian random
+         values with standard deviation of 'random'.
+        '''
         if self.batchsize==0:
             return
         if random==0.:
@@ -97,6 +107,10 @@ class PCLayer:
         else:
             self.x = torch.randn(self.x.shape[0], self.x.shape[1], dtype=torch.float32, device=device) * random
         self.dxdt.zero_()
+
+    def ClearHistory(self):
+        del self.x_history
+        self.x_history = []
 
     def SetDecay(self, lam):
         '''
@@ -133,6 +147,12 @@ class PCLayer:
     def SetState(self, x):
         #self.x = torch.tensor(x, dtype=torch.float32, device=device)
         self.x = x.clone().detach()
+
+    def SetBias(self, x=None, random=0.):
+        if x!=None:
+            self.bias = x.clone().detach()
+        else:
+            self.bias = torch.randn(self.n, dtype=torch.float32, device=device) * random
 
     def Probe(self, bool):
         self.probe_on = bool

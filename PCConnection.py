@@ -17,7 +17,7 @@ else:
 
 class PCConnection():
 
-    def __init__(self, v=None, e=None, act_text='identity'):
+    def __init__(self, v=None, e=None, lower_layer=None, act_text='identity'):
         '''
          con = PCConnection(v=None, e=None, act_text='identity')
          Creates a PCConnection object from PCLayers 'v' to 'e'.
@@ -25,6 +25,9 @@ class PCConnection():
          Inputs:
            v      a PCLayer object, or None
            e      a PCLayer object, or None
+           lower_layer is either None, or the same as v or e. It indicates which
+                  layer is closer to the input side. If it is None, then the
+                  layer with the lower index is chosen.
            act_text    one of: 'identity', 'logistic'
         '''
         if isinstance(v, PCLayer.PCLayer) and isinstance(e, PCLayer.PCLayer):
@@ -41,6 +44,22 @@ class PCConnection():
         self.e.SetType('error')
         self.learning_on = False
         self.gamma = 0.1       # Learning time constant
+        # This next part sets M_sign to account for the fact that the
+        # connections going UP the network are exicitatory, and the
+        # connections going down are inhibitory. M_sign is the multiplier
+        # for the M direction.
+        if lower_layer==None:
+            if self.v_idx<self.e_idx:    # if (v) --M--> (e)
+                self.M_sign = 1.
+            elif self.e_idx<self.v_idx:  # if (e) <--M-- (v)
+                self.M_sign = -1.
+            else:
+                self.M_sign = 0.
+        else:
+            if lower_layer==self.v_idx:  # if (v) --M--> (e)
+                self.M_sign = 1.
+            else:                        # if (e) <--M-- (v)
+                self.M_sign = -1.
         self.SetActivationFunction(act_text)
 
 
@@ -61,6 +80,9 @@ class PCConnection():
             self.sigma = self.Tanh
             self.sigma_p = self.Tanh_p
 
+    def SetGamma(self, gamma):
+        self.gamma = gamma
+
 
     #=======
     # Dynamics
@@ -72,7 +94,7 @@ class PCConnection():
         '''
         self.CurrentTo_e()
         self.CurrentTo_v()
-        if self.learning_on:
+        if True: #self.learning_on:
             self.RateOfChange_Weights()
 
     @abstractmethod
@@ -163,8 +185,9 @@ class DenseConnection(PCConnection):
             self.learning_on = True
 
         # Create weight matrices
+        self.sym = sym
         self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=device)
-        if sym:
+        if self.sym:
             self.W = deepcopy(self.M.transpose(1,0))
         else:
             self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=device)
@@ -180,10 +203,10 @@ class DenseConnection(PCConnection):
     #=======
     # Dynamics
     def CurrentTo_v(self):
-        self.v.RateOfChange( self.e.x@self.W * self.sigma_p() )
+        self.v.RateOfChange( -self.M_sign * self.e.x@self.W * self.sigma_p() )
 
     def CurrentTo_e(self):
-        self.e.RateOfChange( -self.sigma()@self.M )
+        self.e.RateOfChange( self.M_sign * self.sigma()@self.M )
 
     def RateOfChange_Weights(self):
         '''
@@ -191,8 +214,8 @@ class DenseConnection(PCConnection):
          Sets the derivative of the weights (w.r.t. time), including decay.
         '''
         sigmax_times_e = ( self.sigma().transpose(1,0) @ self.e.x ) / self.v.batchsize
-        self.dMdt = sigmax_times_e - self.M_decay*self.M
-        self.dWdt = sigmax_times_e.transpose(1,0) - self.W_decay*self.W
+        self.dMdt = -self.M_sign * sigmax_times_e - self.M_decay*self.M
+        self.dWdt = -self.M_sign * sigmax_times_e.transpose(1,0) - self.W_decay*self.W
 
     def Step(self, dt=0.001):
         if self.learning_on:
@@ -214,16 +237,23 @@ class DenseConnection(PCConnection):
 
     #=======
     # Weight matrices
-    def SetIdentity(self):
+    def SetIdentity(self, mult=1., random=0.):
+        '''
+         con.SetIdentity(mult=1.)
+         Sets the connection weights to mult times the identity matrix.
+        '''
         assert (self.v.n==self.e.n), 'Cannot use identity matrix: Number of nodes do not match'
+        self.M = mult*torch.eye(self.v.n) + torch.randn_like(self.M)*random
+        if self.sym:
+            self.W = deepcopy(self.M)
+        else:
+            self.W = mult*torch.eye(self.v.n) + torch.randn_like(self.W)*random
+
+    def SetRandom(self, random=1.):
         if self.type=='general':
-            self.M = torch.eye(self.v.n)
-            self.W = torch.eye(self.v.n)
-        elif self.type=='1to1':
-            self.M = -torch.eye(self.v.n)
-            self.W = -torch.eye(self.v.n)
-
-
-
-
+            self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=device) * random
+            if self.sym:
+                self.W = self.M.transpose(1,0).clone().detach()
+            else:
+                self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=device) * random
 # end
