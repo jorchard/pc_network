@@ -191,7 +191,7 @@ class PCConnection():
     def Identity(self):
         return self.v.x
     def Identity_p(self):
-        return torch.ones_like(self.v.x)
+        return torch.ones_like(self.v.x, dtype=torch.float32, device=device)
 
 
 
