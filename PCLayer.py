@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 
 
 dtype = torch.float32
-if torch.cuda.is_available():
-    device = torch.device("cuda:5") # Uncomment this to run on GPU
-else:
-    device = torch.device("cpu")
-
+# if torch.cuda.is_available():
+#     device = torch.device("cuda:5") # Uncomment this to run on GPU
+# else:
+#     device = torch.device("cpu")
+global device
 
 class PCLayer:
     '''
@@ -20,14 +20,15 @@ class PCLayer:
      and decays.
     '''
 
-    def __init__(self, n=0):
+    def __init__(self, n=0, device=torch.device('cpu')):
+        self.device = device
         self.n = n    # Number of nodes
 
         # Node activities
         self.x = []          # state of the node
         self.dxdt = []       # derivatives of nodes (wrt time)
         # bias (only used for error nodes)
-        self.bias = torch.zeros(self.n, dtype=torch.float32, device=device)
+        self.bias = torch.zeros(self.n, dtype=torch.float32, device=self.device)
         self.tau = 0.1       # time constant
         self.batchsize = 0
         self.idx = -99       # index (for use in PCNetwork class)
@@ -35,7 +36,7 @@ class PCLayer:
         self.type = 'value'
         self.clamped = False
 
-        self.x_decay = (lambda t: 0.) # Dynamic activity decay
+        self.x_decay = 0.    # Activity decay
 
         # Probe variables
         self.probe_on = False
@@ -70,7 +71,7 @@ class PCLayer:
          Adds the decay term to the right-hand side of the differential
          equation, updating dxdt. The input t is the current time.
         '''
-        self.dxdt -= self.x_decay(t)*self.x + self.bias
+        self.dxdt -= self.x_decay*self.x + self.bias
 
     def Step(self, dt=0.001):
         if not self.clamped:
@@ -87,8 +88,8 @@ class PCLayer:
             self.batchsize = batchsize
             del self.x, self.dxdt, self.x_history
             self.x_history = []
-            self.x = torch.zeros(batchsize, self.n, dtype=torch.float32, device=device)
-            self.dxdt = torch.zeros(batchsize, self.n, dtype=torch.float32, device=device)
+            self.x = torch.zeros(batchsize, self.n, dtype=torch.float32, device=self.device)
+            self.dxdt = torch.zeros(batchsize, self.n, dtype=torch.float32, device=self.device)
 
     def Reset(self, random=0.):
         self.ClearHistory()
@@ -105,7 +106,7 @@ class PCLayer:
         if random==0.:
             self.x.zero_()
         else:
-            self.x = torch.randn(self.x.shape[0], self.x.shape[1], dtype=torch.float32, device=device) * random
+            self.x = torch.randn(self.x.shape[0], self.x.shape[1], dtype=torch.float32, device=self.device) * random
         self.dxdt.zero_()
 
     def ClearHistory(self):
@@ -118,13 +119,9 @@ class PCLayer:
          Sets the decay of the layer to lam, whether it is a value layer
          or an error layer.
          Inputs:
-           lam   either a scalar, or a function of time
-                 If lam is a function, it should output a scalar.
+           lam   a scalar
         '''
-        if np.isscalar(lam):
-            self.x_decay = (lambda t: lam)
-        else:
-            self.x_decay = lam
+        self.x_decay = lam
 
     def SetActivityDecay(self, lam):
         '''
@@ -132,27 +129,20 @@ class PCLayer:
          Sets the activity decay to lam, but only on value layers.
          This call does nothing for error layers.
          Inputs:
-           lam   either a scalar, or a function of time
-                 If lam is a function, it should output a scalar.
-
-         For example,
-          lam could be (lambda t: 0.1*np.exp(-t))
+           lam   a scalar
         '''
         if self.type=='value':
-            if np.isscalar(lam):
-                self.x_decay = (lambda t: lam)
-            else:
-                self.x_decay = lam
+            self.x_decay = lam
 
     def SetState(self, x):
-        #self.x = torch.tensor(x, dtype=torch.float32, device=device)
+        #self.x = torch.tensor(x, dtype=torch.float32, device=self.device)
         self.x = x.clone().detach()
 
     def SetBias(self, x=None, random=0.):
         if x!=None:
             self.bias = x.clone().detach()
         else:
-            self.bias = torch.randn(self.n, dtype=torch.float32, device=device) * random
+            self.bias = torch.randn(self.n, dtype=torch.float32, device=self.device) * random
 
     def Probe(self, bool):
         self.probe_on = bool

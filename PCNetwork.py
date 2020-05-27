@@ -7,15 +7,16 @@ import PCLayer
 import PCConnection
 
 dtype = torch.float32
-if torch.cuda.is_available():
-    device = torch.device("cuda:5") # Uncomment this to run on GPU
-else:
-    device = torch.device("cpu")
-
+# if torch.cuda.is_available():
+#     device = torch.device("cuda:5") # Uncomment this to run on GPU
+# else:
+#     device = torch.device("cpu")
+global device
 
 class PCNetwork():
 
-    def __init__(self):
+    def __init__(self, device=torch.device('cpu')):
+        self.device = device
         self.lyr = []       # list of layers
         self.n_layers = 0   # number of layers
         self.con = []       # list of connections
@@ -36,9 +37,9 @@ class PCNetwork():
         Then, if e is the number of epochs, the weight decay is
           init_wd * np.exp( np.log(1-drop_wd)*e )
         '''
-        init_wd = 0.
-        drop_wd = 0.
-        self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
+        self.init_wd = 0.
+        self.drop_wd = 0.
+        #self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
 
 
     #=======
@@ -79,11 +80,11 @@ class PCNetwork():
             if type(data) in (list, ):
                 data = [data]
             n_batches = len(data)
-            print('Epoch: '+str(k)+' weight decay = '+str(self.WeightDecay(k)))
+            print('Epoch: '+str(k)+' weight decay = '+str(self.CurrentWeightDecay(k)))
             for batch_idx,b in enumerate(data):
                 epoch_time = k + batch_idx/n_batches
                 #print(epoch_time, self.WeightDecay(epoch_time))
-                self.SetWeightDecay(self.WeightDecay(epoch_time))
+                self.SetWeightDecay(self.CurrentWeightDecay(epoch_time))
                 self.ResetState(random=0.5)
                 self.SetInput(b[0])
                 self.SetOutput(b[1])
@@ -192,7 +193,7 @@ class PCNetwork():
     def SetDynamicWeightDecay(self, init_wd, drop_wd):
         '''
          net.SetDynamicWeightDecay(init_wd, drop_wd)
-         Sets the weight decay function.
+         Sets the weight decay parameters.
          The weight decay rate can change as training progresses. It is
          implemented using 2 numbers:
            - init_wd: initial weight decay rate, and
@@ -200,7 +201,12 @@ class PCNetwork():
          Then, if e is the number of epochs, the weight decay is
            init_wd * np.exp( np.log(1-drop_wd)*e )
         '''
-        self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
+        self.init_wd = init_wd
+        self.drop_wd = drop_wd
+        #self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
+
+    def CurrentWeightDecay(self, fe):
+        return self.init_wd*np.exp(np.log(1.-self.drop_wd)*fe)
 
     def SetWeightDecay(self, lam):
         for c in self.con:
@@ -242,9 +248,9 @@ class PCNetwork():
            act_text is one of 'logistic', or 'identity'
         '''
         if type=='general':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], sym=sym, act_text=act_text)
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], sym=sym, act_text=act_text, device=self.device)
         elif type=='1to1':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity')
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity', device=self.device)
             c.SetIdentity()
             self.lyr[e_idx].SetBias(random=1.)
 
