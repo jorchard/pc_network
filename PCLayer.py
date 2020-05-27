@@ -166,9 +166,10 @@ class PCLayer:
     def Plot(self, t_history, idx=0):
         if np.isscalar(idx):
             idx = [idx]
+        xh = torch.stack(self.x_history, dim=0)
         if self.probe_on:
             for i in idx:
-                plt.plot(t_history, np.array(self.x_history)[:,i,:])
+                plt.plot(t_history, xh[:,i,:])
 
 
 
