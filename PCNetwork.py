@@ -165,6 +165,7 @@ class PCNetwork():
          net.Learning(learning_on)
          Turn learning on (True) or off (False) for all 'general' connections.
         '''
+        self.learning_on = learning_on
         for c in self.con:
             c.Learning(learning_on)
 
@@ -204,6 +205,10 @@ class PCNetwork():
     def SetWeightDecay(self, lam):
         for c in self.con:
             c.SetWeightDecay(lam)
+
+    def SetRepelSmallWeights(self, rho):
+        for c in self.con:
+            c.SetRepelSmallWeights(rho)
 
     def SetBlackout(self, t):
         '''

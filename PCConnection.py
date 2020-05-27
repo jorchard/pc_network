@@ -15,6 +15,16 @@ else:
     device = torch.device("cpu")
 
 
+
+
+#====================================================================================
+#====================================================================================
+#
+# PCConnection class
+#
+#====================================================================================
+#====================================================================================
+
 class PCConnection():
 
     def __init__(self, v=None, e=None, lower_layer=None, act_text='identity'):
@@ -63,29 +73,13 @@ class PCConnection():
         self.SetActivationFunction(act_text)
 
 
-    def SetActivationFunction(self, act_text):
-        '''
-         conn.SetActivationFunction(act_text)
-         Sets the activation function for the connection.
-         The activation function is only applied to the adjacent v layer.
-        '''
-        self.act_text = act_text
-        if self.act_text=='logistic':
-            self.sigma = self.Logistic
-            self.sigma_p = self.Logistic_p
-        elif self.act_text=='identity':
-            self.sigma = self.Identity
-            self.sigma_p = self.Identity_p
-        elif self.act_text=='tanh':
-            self.sigma = self.Tanh
-            self.sigma_p = self.Tanh_p
 
-    def SetGamma(self, gamma):
-        self.gamma = gamma
-
-
-    #=======
+    #====================================================================================
+    #
     # Dynamics
+    #
+    #====================================================================================
+
     def RateOfChange(self):
         '''
          con.RateOfChange(t)
@@ -124,15 +118,43 @@ class PCConnection():
         pass
 
 
-    #=======
+    #====================================================================================
+    #
     # Setting behaviours
+    #
+    #====================================================================================
+
     def Learning(self, learning_on):
         pass
 
+    def SetGamma(self, gamma):
+        self.gamma = gamma
+
+    def SetActivationFunction(self, act_text):
+        '''
+         conn.SetActivationFunction(act_text)
+         Sets the activation function for the connection.
+         The activation function is only applied to the adjacent v layer.
+        '''
+        self.act_text = act_text
+        if self.act_text=='logistic':
+            self.sigma = self.Logistic
+            self.sigma_p = self.Logistic_p
+        elif self.act_text=='identity':
+            self.sigma = self.Identity
+            self.sigma_p = self.Identity_p
+        elif self.act_text=='tanh':
+            self.sigma = self.Tanh
+            self.sigma_p = self.Tanh_p
 
 
-    #=======
+
+    #====================================================================================
+    #
     # Activation functions
+    #
+    #====================================================================================
+
     def Logistic(self):
         '''
          conn.Logistic()
@@ -173,6 +195,17 @@ class PCConnection():
 
 
 
+
+
+
+#====================================================================================
+#====================================================================================
+#
+# DenseConnection class
+#
+#====================================================================================
+#====================================================================================
+
 class DenseConnection(PCConnection):
 
     def __init__(self, v=None, e=None, sym=False, type='general', act_text='identity'):
@@ -183,6 +216,9 @@ class DenseConnection(PCConnection):
             self.learning_on = False
         else:
             self.learning_on = True
+
+        self.M_learning_on = self.learning_on
+        self.W_learning_on = self.learning_on
 
         # Create weight matrices
         self.sym = sym
@@ -198,10 +234,16 @@ class DenseConnection(PCConnection):
         self.M_decay = 0.
         self.W_decay = 0.
 
+        self.rho = 0.  # Coef for repelling weights away from zero
 
 
-    #=======
+
+    #====================================================================================
+    #
     # Dynamics
+    #
+    #====================================================================================
+
     def CurrentTo_v(self):
         self.v.RateOfChange( -self.M_sign * self.e.x@self.W * self.sigma_p() )
 
@@ -216,14 +258,41 @@ class DenseConnection(PCConnection):
         sigmax_times_e = ( self.sigma().transpose(1,0) @ self.e.x ) / self.v.batchsize
         self.dMdt = -self.M_sign * sigmax_times_e - self.M_decay*self.M
         self.dWdt = -self.M_sign * sigmax_times_e.transpose(1,0) - self.W_decay*self.W
+        if self.rho>0.:
+            Mnorm, Wnorm = self.WeightNorms()
+            # self.dMdt += self.rho/Mnorm * torch.randn_like(self.M, dtype=torch.float32, device=device)
+            # self.dWdt += self.rho/Wnorm * torch.randn_like(self.W, dtype=torch.float32, device=device)
+            self.dMdt += self.rho/Mnorm * self.M
+            self.dWdt += self.rho/Wnorm * self.W
 
     def Step(self, dt=0.001):
         if self.learning_on:
-            self.M += self.dMdt*dt/self.gamma
-            self.W += self.dWdt*dt/self.gamma
+            if self.M_learning_on:
+                self.M += self.dMdt*dt/self.gamma
+            if self.W_learning_on:
+                self.W += self.dWdt*dt/self.gamma
 
-    #=======
+
+
+    #====================================================================================
+    #
+    # Info
+    #
+    #====================================================================================
+
+    def WeightNorms(self):
+        Mnorm = torch.norm(self.M)  # Frobenius norm, sqrt(sum(M**2))
+        Wnorm = torch.norm(self.W)
+        return Mnorm, Wnorm
+
+
+
+    #====================================================================================
+    #
     # Setting behaviours
+    #
+    #====================================================================================
+
     def Learning(self, learning_on):
         if self.type=='general':
             self.learning_on = learning_on
@@ -234,9 +303,22 @@ class DenseConnection(PCConnection):
         self.M_decay = lam
         self.W_decay = lam
 
+    def SetRepelSmallWeights(self, rho):
+        '''
+         con.SetRepelSmallWeights(rho)
+         Sets the weight for the term that repels weigths away from zero.
+         If F is the Frobenius norm of the weights, then the DE for the
+         weights includes a term
+           rho/F * randomWeights
+        '''
+        self.rho = rho
 
-    #=======
+    #====================================================================================
+    #
     # Weight matrices
+    #
+    #====================================================================================
+
     def SetIdentity(self, mult=1., random=0.):
         '''
          con.SetIdentity(mult=1.)
@@ -256,4 +338,15 @@ class DenseConnection(PCConnection):
                 self.W = self.M.transpose(1,0).clone().detach()
             else:
                 self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=device) * random
+
+    def SetRandomUniform(self, low=0, high=1):
+        if self.type=='general':
+            self.M = torch.rand(self.v.n, self.e.n, dtype=torch.float32, device=device)*(high-low) + low
+            if self.sym:
+                self.W = self.M.transpose(1,0).clone().detach()
+            else:
+                self.W = torch.rand(self.e.n, self.v.n, dtype=torch.float32, device=device)*(high-low) + low
+
+
+
 # end
