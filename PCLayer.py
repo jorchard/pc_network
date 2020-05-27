@@ -77,7 +77,7 @@ class PCLayer:
             self.x += self.dxdt*dt/self.tau
         #self.dxdt.zero_()
         if self.probe_on:
-            self.x_history.append(deepcopy(self.x.numpy()))
+            self.x_history.append(deepcopy(self.x.cpu()))
 
 
     #=======
