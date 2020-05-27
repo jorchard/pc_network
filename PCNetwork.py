@@ -36,9 +36,9 @@ class PCNetwork():
         Then, if e is the number of epochs, the weight decay is
           init_wd * np.exp( np.log(1-drop_wd)*e )
         '''
-        init_wd = 0.
-        drop_wd = 0.
-        self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
+        self.init_wd = 0.
+        self.drop_wd = 0.
+        #self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
 
 
     #=======
@@ -79,11 +79,11 @@ class PCNetwork():
             if type(data) in (list, ):
                 data = [data]
             n_batches = len(data)
-            print('Epoch: '+str(k)+' weight decay = '+str(self.WeightDecay(k)))
+            print('Epoch: '+str(k)+' weight decay = '+str(self.CurrentWeightDecay(k)))
             for batch_idx,b in enumerate(data):
                 epoch_time = k + batch_idx/n_batches
                 #print(epoch_time, self.WeightDecay(epoch_time))
-                self.SetWeightDecay(self.WeightDecay(epoch_time))
+                self.SetWeightDecay(self.CurrentWeightDecay(epoch_time))
                 self.ResetState(random=0.5)
                 self.SetInput(b[0])
                 self.SetOutput(b[1])
@@ -192,7 +192,7 @@ class PCNetwork():
     def SetDynamicWeightDecay(self, init_wd, drop_wd):
         '''
          net.SetDynamicWeightDecay(init_wd, drop_wd)
-         Sets the weight decay function.
+         Sets the weight decay parameters.
          The weight decay rate can change as training progresses. It is
          implemented using 2 numbers:
            - init_wd: initial weight decay rate, and
@@ -200,7 +200,12 @@ class PCNetwork():
          Then, if e is the number of epochs, the weight decay is
            init_wd * np.exp( np.log(1-drop_wd)*e )
         '''
-        self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
+        self.init_wd = init_wd
+        self.drop_wd = drop_wd
+        #self.WeightDecay = (lambda e: init_wd*np.exp(np.log(1.-drop_wd)*e))
+
+    def CurrentWeightDecay(self, fe):
+        return self.init_wd*np.exp(np.log(1.-self.drop_wd)*fe)
 
     def SetWeightDecay(self, lam):
         for c in self.con:

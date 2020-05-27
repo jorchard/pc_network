@@ -35,7 +35,7 @@ class PCLayer:
         self.type = 'value'
         self.clamped = False
 
-        self.x_decay = (lambda t: 0.) # Dynamic activity decay
+        self.x_decay = 0.    # Activity decay
 
         # Probe variables
         self.probe_on = False
@@ -70,7 +70,7 @@ class PCLayer:
          Adds the decay term to the right-hand side of the differential
          equation, updating dxdt. The input t is the current time.
         '''
-        self.dxdt -= self.x_decay(t)*self.x + self.bias
+        self.dxdt -= self.x_decay*self.x + self.bias
 
     def Step(self, dt=0.001):
         if not self.clamped:
@@ -118,13 +118,9 @@ class PCLayer:
          Sets the decay of the layer to lam, whether it is a value layer
          or an error layer.
          Inputs:
-           lam   either a scalar, or a function of time
-                 If lam is a function, it should output a scalar.
+           lam   a scalar
         '''
-        if np.isscalar(lam):
-            self.x_decay = (lambda t: lam)
-        else:
-            self.x_decay = lam
+        self.x_decay = lam
 
     def SetActivityDecay(self, lam):
         '''
@@ -132,17 +128,10 @@ class PCLayer:
          Sets the activity decay to lam, but only on value layers.
          This call does nothing for error layers.
          Inputs:
-           lam   either a scalar, or a function of time
-                 If lam is a function, it should output a scalar.
-
-         For example,
-          lam could be (lambda t: 0.1*np.exp(-t))
+           lam   a scalar
         '''
         if self.type=='value':
-            if np.isscalar(lam):
-                self.x_decay = (lambda t: lam)
-            else:
-                self.x_decay = lam
+            self.x_decay = lam
 
     def SetState(self, x):
         #self.x = torch.tensor(x, dtype=torch.float32, device=device)
