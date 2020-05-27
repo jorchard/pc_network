@@ -8,7 +8,7 @@ import PCConnection
 
 dtype = torch.float32
 if torch.cuda.is_available():
-    device = torch.device("cuda:0") # Uncomment this to run on GPU
+    device = torch.device("cuda:5") # Uncomment this to run on GPU
 else:
     device = torch.device("cpu")
 

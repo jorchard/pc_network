@@ -10,7 +10,7 @@ from abc import abstractmethod
 
 dtype = torch.float32
 if torch.cuda.is_available():
-    device = torch.device("cuda:0") # Uncomment this to run on GPU
+    device = torch.device("cuda:5") # Uncomment this to run on GPU
 else:
     device = torch.device("cpu")
 
@@ -60,16 +60,16 @@ class PCConnection():
         # for the M direction.
         if lower_layer==None:
             if self.v_idx<self.e_idx:    # if (v) --M--> (e)
-                self.M_sign = 1.
+                self.M_sign = torch.tensor(1., dtype=torch.float32, device=device)
             elif self.e_idx<self.v_idx:  # if (e) <--M-- (v)
-                self.M_sign = -1.
+                self.M_sign = torch.tensor(-1., dtype=torch.float32, device=device)
             else:
                 self.M_sign = 0.
         else:
             if lower_layer==self.v_idx:  # if (v) --M--> (e)
-                self.M_sign = 1.
+                self.M_sign = torch.tensor(1., dtype=torch.float32, device=device)
             else:                        # if (e) <--M-- (v)
-                self.M_sign = -1.
+                self.M_sign = torch.tensor(-1., dtype=torch.float32, device=device)
         self.SetActivationFunction(act_text)
 
 
