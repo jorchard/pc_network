@@ -7,15 +7,16 @@ import PCLayer
 import PCConnection
 
 dtype = torch.float32
-if torch.cuda.is_available():
-    device = torch.device("cuda:5") # Uncomment this to run on GPU
-else:
-    device = torch.device("cpu")
-
+# if torch.cuda.is_available():
+#     device = torch.device("cuda:5") # Uncomment this to run on GPU
+# else:
+#     device = torch.device("cpu")
+global device
 
 class PCNetwork():
 
-    def __init__(self):
+    def __init__(self, device=torch.device('cpu')):
+        self.device = device
         self.lyr = []       # list of layers
         self.n_layers = 0   # number of layers
         self.con = []       # list of connections
@@ -247,9 +248,9 @@ class PCNetwork():
            act_text is one of 'logistic', or 'identity'
         '''
         if type=='general':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], sym=sym, act_text=act_text)
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], sym=sym, act_text=act_text, device=self.device)
         elif type=='1to1':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity')
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity', device=self.device)
             c.SetIdentity()
             self.lyr[e_idx].SetBias(random=1.)
 

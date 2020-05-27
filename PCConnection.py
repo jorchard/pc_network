@@ -9,10 +9,11 @@ from abc import abstractmethod
 
 
 dtype = torch.float32
-if torch.cuda.is_available():
-    device = torch.device("cuda:5") # Uncomment this to run on GPU
-else:
-    device = torch.device("cpu")
+# if torch.cuda.is_available():
+#     device = torch.device("cuda:5") # Uncomment this to run on GPU
+# else:
+#     device = torch.device("cpu")
+global device
 
 
 
@@ -27,9 +28,9 @@ else:
 
 class PCConnection():
 
-    def __init__(self, v=None, e=None, lower_layer=None, act_text='identity'):
+    def __init__(self, v=None, e=None, lower_layer=None, act_text='identity', device=torch.device('cpu')):
         '''
-         con = PCConnection(v=None, e=None, act_text='identity')
+         con = PCConnection(v=None, e=None, act_text='identity', device=torch.device('cpu'))
          Creates a PCConnection object from PCLayers 'v' to 'e'.
 
          Inputs:
@@ -40,6 +41,7 @@ class PCConnection():
                   layer with the lower index is chosen.
            act_text    one of: 'identity', 'logistic'
         '''
+        self.device = device
         if isinstance(v, PCLayer.PCLayer) and isinstance(e, PCLayer.PCLayer):
             self.v = v
             self.e = e
@@ -60,16 +62,16 @@ class PCConnection():
         # for the M direction.
         if lower_layer==None:
             if self.v_idx<self.e_idx:    # if (v) --M--> (e)
-                self.M_sign = torch.tensor(1., dtype=torch.float32, device=device)
+                self.M_sign = torch.tensor(1., dtype=torch.float32, device=self.device)
             elif self.e_idx<self.v_idx:  # if (e) <--M-- (v)
-                self.M_sign = torch.tensor(-1., dtype=torch.float32, device=device)
+                self.M_sign = torch.tensor(-1., dtype=torch.float32, device=self.device)
             else:
                 self.M_sign = 0.
         else:
             if lower_layer==self.v_idx:  # if (v) --M--> (e)
-                self.M_sign = torch.tensor(1., dtype=torch.float32, device=device)
+                self.M_sign = torch.tensor(1., dtype=torch.float32, device=self.device)
             else:                        # if (e) <--M-- (v)
-                self.M_sign = torch.tensor(-1., dtype=torch.float32, device=device)
+                self.M_sign = torch.tensor(-1., dtype=torch.float32, device=self.device)
         self.SetActivationFunction(act_text)
 
 
@@ -191,7 +193,7 @@ class PCConnection():
     def Identity(self):
         return self.v.x
     def Identity_p(self):
-        return torch.ones_like(self.v.x, dtype=torch.float32, device=device)
+        return torch.ones_like(self.v.x, dtype=torch.float32, device=self.device)
 
 
 
@@ -208,8 +210,8 @@ class PCConnection():
 
 class DenseConnection(PCConnection):
 
-    def __init__(self, v=None, e=None, sym=False, type='general', act_text='identity'):
-        PCConnection.__init__(self, v=v, e=e, act_text=act_text)
+    def __init__(self, v=None, e=None, sym=False, type='general', act_text='identity', device=torch.device('cpu')):
+        PCConnection.__init__(self, v=v, e=e, act_text=act_text, device=device)
 
         self.type = type
         if self.type=='1to1':
@@ -222,11 +224,11 @@ class DenseConnection(PCConnection):
 
         # Create weight matrices
         self.sym = sym
-        self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=device)
+        self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=self.device)
         if self.sym:
             self.W = deepcopy(self.M.transpose(1,0))
         else:
-            self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=device)
+            self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=self.device)
 
         self.dMdt = torch.zeros_like(self.M)
         self.dWdt = torch.zeros_like(self.W)
@@ -260,8 +262,8 @@ class DenseConnection(PCConnection):
         self.dWdt = -self.M_sign * sigmax_times_e.transpose(1,0) - self.W_decay*self.W
         if self.rho>0.:
             Mnorm, Wnorm = self.WeightNorms()
-            # self.dMdt += self.rho/Mnorm * torch.randn_like(self.M, dtype=torch.float32, device=device)
-            # self.dWdt += self.rho/Wnorm * torch.randn_like(self.W, dtype=torch.float32, device=device)
+            # self.dMdt += self.rho/Mnorm * torch.randn_like(self.M, dtype=torch.float32, device=self.device)
+            # self.dWdt += self.rho/Wnorm * torch.randn_like(self.W, dtype=torch.float32, device=self.device)
             self.dMdt += self.rho/Mnorm * self.M
             self.dWdt += self.rho/Wnorm * self.W
 
@@ -325,27 +327,27 @@ class DenseConnection(PCConnection):
          Sets the connection weights to mult times the identity matrix.
         '''
         assert (self.v.n==self.e.n), 'Cannot use identity matrix: Number of nodes do not match'
-        self.M = mult*torch.eye(self.v.n, dtype=torch.float32, device=device) + torch.randn_like(self.M, dtype=torch.float32, device=device)*random
+        self.M = mult*torch.eye(self.v.n, dtype=torch.float32, device=self.device) + torch.randn_like(self.M, dtype=torch.float32, device=self.device)*random
         if self.sym:
             self.W = deepcopy(self.M)
         else:
-            self.W = mult*torch.eye(self.v.n, dtype=torch.float32, device=device) + torch.randn_like(self.W, dtype=torch.float32, device=device)*random
+            self.W = mult*torch.eye(self.v.n, dtype=torch.float32, device=self.device) + torch.randn_like(self.W, dtype=torch.float32, device=self.device)*random
 
     def SetRandom(self, random=1.):
         if self.type=='general':
-            self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=device) * random
+            self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=self.device) * random
             if self.sym:
                 self.W = self.M.transpose(1,0).clone().detach()
             else:
-                self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=device) * random
+                self.W = torch.randn(self.e.n, self.v.n, dtype=torch.float32, device=self.device) * random
 
     def SetRandomUniform(self, low=0, high=1):
         if self.type=='general':
-            self.M = torch.rand(self.v.n, self.e.n, dtype=torch.float32, device=device)*(high-low) + low
+            self.M = torch.rand(self.v.n, self.e.n, dtype=torch.float32, device=self.device)*(high-low) + low
             if self.sym:
                 self.W = self.M.transpose(1,0).clone().detach()
             else:
-                self.W = torch.rand(self.e.n, self.v.n, dtype=torch.float32, device=device)*(high-low) + low
+                self.W = torch.rand(self.e.n, self.v.n, dtype=torch.float32, device=self.device)*(high-low) + low
 
 
 
