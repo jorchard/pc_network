@@ -325,11 +325,11 @@ class DenseConnection(PCConnection):
          Sets the connection weights to mult times the identity matrix.
         '''
         assert (self.v.n==self.e.n), 'Cannot use identity matrix: Number of nodes do not match'
-        self.M = mult*torch.eye(self.v.n) + torch.randn_like(self.M)*random
+        self.M = mult*torch.eye(self.v.n, dtype=torch.float32, device=device) + torch.randn_like(self.M, dtype=torch.float32, device=device)*random
         if self.sym:
             self.W = deepcopy(self.M)
         else:
-            self.W = mult*torch.eye(self.v.n) + torch.randn_like(self.W)*random
+            self.W = mult*torch.eye(self.v.n, dtype=torch.float32, device=device) + torch.randn_like(self.W, dtype=torch.float32, device=device)*random
 
     def SetRandom(self, random=1.):
         if self.type=='general':
