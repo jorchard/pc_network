@@ -348,49 +348,4 @@ class PCNetwork():
 
 
 
-
-
-
-#============================================================
-#
-# Untility functions
-#
-#============================================================
-def MakeBatches(data_in, data_out, batchsize=10, shuffle=True):
-    '''
-        batches = MakeBatches(data_in, data_out, batchsize=10, shuffle=True)
-
-        Breaks up the dataset into batches of size batchsize.
-
-        Inputs:
-          data_in    is a list of inputs
-          data_out   is a list of outputs
-          batch size is the number of samples in each batch
-          shuffle    shuffle samples first (True)
-
-        Output:
-          batches is a list containing batches, where each batch is:
-                     [in_batch, out_batch]
-
-
-        Note: The last batch might be incomplete (smaller than batchsize).
-    '''
-    N = len(data_in)
-    r = range(N)
-    if shuffle:
-        r = torch.randperm(N)
-    batches = []
-    for k in range(0, N, batchsize):
-        if k+batchsize<=N:
-            din = data_in[r[k:k+batchsize]]
-            dout = data_out[r[k:k+batchsize]]
-        else:
-            din = data_in[r[k:]]
-            dout = data_out[r[k:]]
-        if isinstance(din, (list, tuple)):
-            batches.append( [torch.stack(din, dim=0).float().to(device) , torch.stack(dout, dim=0).float().to(device)] )
-        else:
-            batches.append( [din.float().to(device) , dout.float().to(device)] )
-    return batches
-
 # end

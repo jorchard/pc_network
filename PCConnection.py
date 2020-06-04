@@ -237,6 +237,8 @@ class DenseConnection(PCConnection):
         self.W_decay = 0.
 
         self.rho = 0.  # Coef for repelling weights away from zero
+        self.ell = 1.  # Absolue sum of weights for normalization
+        self.renormalize = False  # True to keep the abs sum of the weights = ell
 
 
 
@@ -247,7 +249,8 @@ class DenseConnection(PCConnection):
     #====================================================================================
 
     def CurrentTo_v(self):
-        self.v.RateOfChange( -self.M_sign * self.e.x@self.W * self.sigma_p() )
+        #self.v.RateOfChange( -self.M_sign * self.e.x@self.W * self.sigma_p() )
+        self.v.RateOfChange( -self.M_sign * self.e.x@self.W )
 
     def CurrentTo_e(self):
         self.e.RateOfChange( self.M_sign * self.sigma()@self.M )
@@ -274,6 +277,20 @@ class DenseConnection(PCConnection):
             if self.W_learning_on:
                 self.W += self.dWdt*dt/self.gamma
 
+        if self.renormalize:
+            #self.NormalizeWeights()
+            self.ClipWeights()
+
+
+    def NormalizeWeights(self):
+        weightsum = torch.sum(torch.abs(self.M))
+        self.M *= self.ell/weightsum
+        weightsum = torch.sum(torch.abs(self.W))
+        self.W *= self.ell/weightsum
+
+    def ClipWeights(self):
+        self.W.clamp_(min=0.)
+        self.M.clamp_(min=0.)
 
 
     #====================================================================================
@@ -317,7 +334,7 @@ class DenseConnection(PCConnection):
 
     #====================================================================================
     #
-    # Weight matrices
+    # Creating Weight matrices
     #
     #====================================================================================
 
