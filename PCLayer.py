@@ -15,7 +15,7 @@ global device
 
 class PCLayer:
     '''
-     This PCLayer type is agnostic about being an erro node or a value node.
+     This PCLayer type is agnostic about being an error node or a value node.
      Its identity as one or the other will be implicit in the connections
      and decays.
     '''
@@ -136,7 +136,7 @@ class PCLayer:
 
     def SetState(self, x):
         #self.x = torch.tensor(x, dtype=torch.float32, device=self.device)
-        self.x = x.clone().detach()
+        self.x = x.detach().clone()
 
     def SetBias(self, x=None, random=0.):
         if x!=None:

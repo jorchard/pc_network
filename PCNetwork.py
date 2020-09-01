@@ -159,6 +159,74 @@ class PCNetwork():
                 c.Step(dt=dt)
 
 
+    def dEdInput(self, x, t):
+        '''
+         dEdx = net.dEdInput(x, t)
+
+         Computes dEdx given input x and target t.
+         The cost function is specified by the network.
+
+         Inputs:
+           x is the input that you want to perturb
+           t is the corresponding true target vector (one-hot)
+
+         Output:
+           dEdx is a vector the same shape as x
+        '''
+        self.FeedForward([x])
+
+        t = np.array(t)  # convert t to an array, in case it's not
+
+        # Error gradient for top layer
+        dEdz = net.TopGradient(t)
+
+        # Loop down through the layers
+        for i in range(net.n_layers-2, -1, -1):
+            pre = net.lyr[i]
+
+            if i>0:
+                dEdz = ( dEdz @ net.W[i].T ) * pre.sigma_p()
+
+        # Calculate gradient w.r.t. input (x)
+        dEdx = np.squeeze( np.dot(net.W[0], dEdz.T)    )
+        return dEdx
+
+
+    def FastPredict(self, x):
+        '''
+            y = net.FastPredict(x)
+
+            Runs the network as a feedforward network, starting with x as input,
+            skipping the error nodes, and overwriting the value nodes
+            with the equilibrium solution.
+            Returns the activity of the output layer.
+
+            NOTE: This method assumes that the connections are ordered from
+                  bottom to top.
+        '''
+        #x = np.array(x)  # Convert input to array, in case it's not
+
+        self.SetInput(x) # Allocate, and set layer 0
+
+        # Reset all derivatives to zero
+        for l in self.lyr:
+            l.dxdt.zero_()
+
+        # Loop over connections...
+        for c in self.con:
+            if c.type=='general':  # c.M_sign = 1
+                # (v) --M--> (e)
+                c.CurrentTo_e()
+                c.e.x = c.e.dxdt.detach().clone()  # Overwrite state with input current
+            else:            # c.type=="1to1", c.M_sign = -1
+                # (e) --W--> (v)
+                c.CurrentTo_v()
+                c.v.x = c.v.dxdt.detach().clone()
+
+        # Return activity of output layer
+        return self.lyr[-1].x
+
+
     #=======
     # Setting behaviours
     def Learning(self, learning_on):

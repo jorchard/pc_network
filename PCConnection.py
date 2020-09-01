@@ -60,6 +60,7 @@ class PCConnection():
         # connections going UP the network are exicitatory, and the
         # connections going down are inhibitory. M_sign is the multiplier
         # for the M direction.
+        # M_sign = 1 for M pointing UP the network
         if lower_layer==None:
             if self.v_idx<self.e_idx:    # if (v) --M--> (e)
                 self.M_sign = torch.tensor(1., dtype=torch.float32, device=self.device)
