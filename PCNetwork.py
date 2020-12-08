@@ -5,6 +5,7 @@ import pickle
 import matplotlib.pyplot as plt
 import PCLayer
 import PCConnection
+from tqdm import tqdm
 
 dtype = torch.float32
 # if torch.cuda.is_available():
@@ -75,12 +76,12 @@ class PCNetwork():
         self.lyr[0].Clamped(True)
         self.lyr[-1].Clamped(True)
 
-        for k in range(epochs):
+        for k in tqdm(range(epochs)):
             #batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
             if type(data) in (list, ):
                 data = [data]
             n_batches = len(data)
-            print('Epoch: '+str(k)+' weight decay = '+str(self.CurrentWeightDecay(k)))
+            #print('Epoch: '+str(k)+' weight decay = '+str(self.CurrentWeightDecay(k)))
             for batch_idx,b in enumerate(data):
                 epoch_time = k + batch_idx/n_batches
                 #print(epoch_time, self.WeightDecay(epoch_time))
@@ -164,7 +165,9 @@ class PCNetwork():
          dEdx = net.dEdInput(x, t)
 
          Computes dEdx given input x and target t.
-         The cost function is specified by the network.
+         The cost function is assumed to be MSE.
+         Note: This method assumes that the network consists of a
+               sequence of layers, ordered from bottom to top.
 
          Inputs:
            x is the input that you want to perturb
@@ -173,17 +176,18 @@ class PCNetwork():
          Output:
            dEdx is a vector the same shape as x
         '''
-        self.FeedForward([x])
+        self.FastPredict([x])
 
-        t = np.array(t)  # convert t to an array, in case it's not
+        t = torch.tensor(t, dtype=torch.float)  # convert t to a tensor, in case it's not
 
         # Error gradient for top layer
-        dEdz = net.TopGradient(t)
+        dEdz = self.lyr[-1].x - t
 
         # Loop down through the layers
-        for i in range(net.n_layers-2, -1, -1):
-            pre = net.lyr[i]
+        for i in range(len(self.con)-1, -1, -1):
+            c = self.con[i]
 
+            #dEdx = (dEdz @ c.M.transpose(1,0)) * c.
             if i>0:
                 dEdz = ( dEdz @ net.W[i].T ) * pre.sigma_p()
 
@@ -204,8 +208,6 @@ class PCNetwork():
             NOTE: This method assumes that the connections are ordered from
                   bottom to top.
         '''
-        #x = np.array(x)  # Convert input to array, in case it's not
-
         self.SetInput(x) # Allocate, and set layer 0
 
         # Reset all derivatives to zero
@@ -320,7 +322,7 @@ class PCNetwork():
         elif type=='1to1':
             c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity', device=self.device)
             c.SetIdentity()
-            self.lyr[e_idx].SetBias(random=1.)
+            #self.lyr[e_idx].SetBias(random=1.)
 
         self.lyr[e_idx].SetDecay(1.)  # Set decay of error layer
 

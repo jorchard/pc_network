@@ -91,7 +91,7 @@ class PCConnection():
         '''
         self.CurrentTo_e()
         self.CurrentTo_v()
-        if True: #self.learning_on:
+        if self.learning_on:
             self.RateOfChange_Weights()
 
     @abstractmethod
@@ -220,8 +220,8 @@ class DenseConnection(PCConnection):
         else:
             self.learning_on = True
 
-        self.M_learning_on = self.learning_on
-        self.W_learning_on = self.learning_on
+        self.M_learning_on = True
+        self.W_learning_on = True
 
         # Create weight matrices
         self.sym = sym
