@@ -82,7 +82,7 @@ class PCLayer:
     def Step(self, dt=0.001):
         if not self.clamped:
             self.x += self.dxdt*dt/self.tau
-        self.dxdt.zero_()
+        aself.dxdt.zero_()
         if self.probe_on:
             self.x_history.append(deepcopy(self.x.cpu()))
 
