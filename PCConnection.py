@@ -23,6 +23,8 @@ global device
 #
 # PCConnection class
 #
+# This is the base class.
+#
 #====================================================================================
 #====================================================================================
 
@@ -250,8 +252,8 @@ class DenseConnection(PCConnection):
     #====================================================================================
 
     def CurrentTo_v(self):
-        #self.v.RateOfChange( -self.M_sign * self.e.x@self.W * self.sigma_p() )
-        self.v.RateOfChange( -self.M_sign * self.e.x@self.W )
+        self.v.RateOfChange( -self.M_sign * self.e.x@self.W * self.sigma_p() )
+        #self.v.RateOfChange( -self.M_sign * self.e.x@self.W )
 
     def CurrentTo_e(self):
         self.e.RateOfChange( self.M_sign * self.sigma()@self.M )
@@ -278,6 +280,9 @@ class DenseConnection(PCConnection):
             if self.W_learning_on:
                 self.W += self.dWdt*dt/self.gamma
 
+        self.dMdt.zero_()
+        self.dWdt.zero_()
+        
         if self.renormalize:
             #self.NormalizeWeights()
             self.ClipWeights()

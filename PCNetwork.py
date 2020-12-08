@@ -5,6 +5,7 @@ import pickle
 import matplotlib.pyplot as plt
 import PCLayer
 import PCConnection
+from tqdm import tqdm
 
 dtype = torch.float32
 # if torch.cuda.is_available():
@@ -75,12 +76,12 @@ class PCNetwork():
         self.lyr[0].Clamped(True)
         self.lyr[-1].Clamped(True)
 
-        for k in range(epochs):
+        for k in tqdm(range(epochs)):
             #batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
             if type(data) in (list, ):
                 data = [data]
             n_batches = len(data)
-            print('Epoch: '+str(k)+' weight decay = '+str(self.CurrentWeightDecay(k)))
+            #print('Epoch: '+str(k)+' weight decay = '+str(self.CurrentWeightDecay(k)))
             for batch_idx,b in enumerate(data):
                 epoch_time = k + batch_idx/n_batches
                 #print(epoch_time, self.WeightDecay(epoch_time))
@@ -288,7 +289,7 @@ class PCNetwork():
         '''
          net.SetBlackout(t)
          Sets the blackout period for learning. The blackout period is
-         how long to wait during a old before turning learning on.
+         how long to wait during a hold before turning learning on.
         '''
         self.blackout = t
 
@@ -320,7 +321,7 @@ class PCNetwork():
         elif type=='1to1':
             c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity', device=self.device)
             c.SetIdentity()
-            self.lyr[e_idx].SetBias(random=1.)
+            #self.lyr[e_idx].SetBias(random=1.)
 
         self.lyr[e_idx].SetDecay(1.)  # Set decay of error layer
 
