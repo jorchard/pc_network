@@ -76,6 +76,8 @@ class PCNetwork():
         self.lyr[0].Clamped(True)
         self.lyr[-1].Clamped(True)
 
+        self.Learning(True)
+
         for k in tqdm(range(epochs)):
             #batches = MakeBatches(x, t, batchsize=batchsize, shuffle=True)
             if type(data) in (list, ):
@@ -138,8 +140,8 @@ class PCNetwork():
          net.RateOfChange()
          Updates the input currents to all nodes in the network
         '''
-        for l in self.lyr:
-            l.dxdt.zero_()
+        #for l in self.lyr:
+        #    l.dxdt.zero_()
 
         # Delivers current across connections
         # and overwrites dMdt and dWdt if a connection's learning is on.
@@ -238,6 +240,8 @@ class PCNetwork():
         self.learning_on = learning_on
         for c in self.con:
             c.Learning(learning_on)
+        for l in self.lyr:
+            l.Learning(learning_on)
 
     def SetInput(self, x):
         self.Allocate(x)
@@ -254,6 +258,8 @@ class PCNetwork():
     def SetGamma(self, gamma):
         for c in self.con:
             c.SetGamma(gamma)
+        for l in self.lyr:
+            l.SetGamma(gamma)
 
     def SetActivityDecay(self, lam):
         for l in self.lyr:
@@ -306,24 +312,26 @@ class PCNetwork():
         l.idx = self.n_layers-1
 
 
-    def Connect(self, v_idx=None, e_idx=None, type='general', sym=False, act_text='logistic'):
+    def Connect(self, v_idx=None, e_idx=None, lower_layer=None, type='general', sym=False, act_text='logistic'):
         '''
          net.Connect(v=None, e=None, type='general')
          Creates a connection between the value node v and the error
          node e.
          Inputs:
            v_idx, e_idx  are indices to the network's lyr list
+           lower_layer is either v_idx or e_idx, or None (default to min of x_idx and e_idx)
            type is either 'general', or '1to1'
            act_text is one of 'logistic', or 'identity'
         '''
         if type=='general':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], sym=sym, act_text=act_text, device=self.device)
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], lower_layer=lower_layer, sym=sym, act_text=act_text, device=self.device)
         elif type=='1to1':
-            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], type=type, act_text='identity', device=self.device)
+            c = PCConnection.DenseConnection(v=self.lyr[v_idx], e=self.lyr[e_idx], lower_layer=lower_layer, type=type, act_text='identity', device=self.device)
             c.SetIdentity()
             #self.lyr[e_idx].SetBias(random=1.)
 
         self.lyr[e_idx].SetDecay(1.)  # Set decay of error layer
+        self.lyr[e_idx].type = 'error'
 
         self.con.append(c)
 

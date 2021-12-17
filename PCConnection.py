@@ -213,8 +213,8 @@ class PCConnection():
 
 class DenseConnection(PCConnection):
 
-    def __init__(self, v=None, e=None, sym=False, type='general', act_text='identity', device=torch.device('cpu')):
-        PCConnection.__init__(self, v=v, e=e, act_text=act_text, device=device)
+    def __init__(self, v=None, e=None, lower_layer=None, sym=False, type='general', act_text='identity', device=torch.device('cpu')):
+        PCConnection.__init__(self, v=v, e=e, lower_layer=lower_layer, act_text=act_text, device=device)
 
         self.type = type
         if self.type=='1to1':
@@ -282,7 +282,7 @@ class DenseConnection(PCConnection):
 
         self.dMdt.zero_()
         self.dWdt.zero_()
-        
+
         if self.renormalize:
             #self.NormalizeWeights()
             self.ClipWeights()
@@ -357,6 +357,9 @@ class DenseConnection(PCConnection):
             self.W = mult*torch.eye(self.v.n, dtype=torch.float32, device=self.device) + torch.randn_like(self.W, dtype=torch.float32, device=self.device)*random
 
     def SetRandom(self, random=1.):
+        '''
+         con.SetRandom(random=1.)
+        '''
         if self.type=='general':
             self.M = torch.randn(self.v.n, self.e.n, dtype=torch.float32, device=self.device) * random
             if self.sym:
@@ -372,6 +375,11 @@ class DenseConnection(PCConnection):
             else:
                 self.W = torch.rand(self.e.n, self.v.n, dtype=torch.float32, device=self.device)*(high-low) + low
 
-
-
+    def SetWeights(self, M, W=None):
+        self.M = torch.tensor(deepcopy(M))
+        if W is None:
+            self.W = deepcopy(self.M.transpose(1,0))
+        else:
+            self.W = torch.tensor(deepcopy(W))
+            
 # end

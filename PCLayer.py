@@ -20,20 +20,29 @@ class PCLayer:
      and decays.
     '''
 
-    def __init__(self, n=0, device=torch.device('cpu')):
+    def __init__(self, n=0, type='value', device=torch.device('cpu')):
         self.device = device
         self.n = n    # Number of nodes
 
         # Node activities
         self.x = []          # state of the node
         self.dxdt = []       # derivatives of nodes (wrt time)
-        # bias (only used for error nodes)
-        self.bias = torch.zeros(self.n, dtype=torch.float32, device=self.device)
         self.tau = 0.1       # time constant
         self.batchsize = 0
         self.idx = -99       # index (for use in PCNetwork class)
 
-        self.type = 'value'
+        self.type = type  # 'value' or 'error'
+
+        # bias (only used for error nodes)
+        if self.type=='value':
+            self.bias = torch.zeros(self.n, dtype=torch.float32, device=self.device)
+            self.learning_on = False  # no bias in value nodes
+        else:
+            self.SetBias(random=0.)
+            self.learning_on = True  # for learning bias
+        self.dbiasdt = torch.zeros(self.n, dtype=torch.float32, device=self.device)
+        self.gamma = 0.2  # time constant for learning bias
+
         self.clamped = False
 
         self.x_decay = 0.    # Activity decay
@@ -48,9 +57,15 @@ class PCLayer:
     def SetTau(self, tau):
         self.tau = tau
 
+    def SetGamma(self, gamma):
+        self.gamma = gamma
+
     def SetType(self, ltype):
         self.type = ltype
 
+    def Learning(self, learning_on):
+        if self.type=='error':
+            self.learning_on = learning_on
 
     def Clamped(self, is_clamped):
         '''
@@ -78,11 +93,15 @@ class PCLayer:
          equation, updating dxdt. The input t is the current time.
         '''
         self.dxdt -= self.x_decay*self.x + self.bias
+        self.dbiasdt += torch.sum(self.x, 0) / self.batchsize
 
     def Step(self, dt=0.001):
         if not self.clamped:
             self.x += self.dxdt*dt/self.tau
+        if self.learning_on:
+            self.bias += self.dbiasdt*dt / self.gamma
         self.dxdt.zero_()
+        self.dbiasdt.zero_()
         if self.probe_on:
             self.x_history.append(deepcopy(self.x.cpu()))
 
@@ -142,12 +161,12 @@ class PCLayer:
         if self.type=='value':
             self.x_decay = lam
 
-    def SetState(self, x):
+    def SetState(self, x, random=0.):
         #self.x = torch.tensor(x, dtype=torch.float32, device=self.device)
-        self.x = x.detach().clone()
+        self.x = x.detach().clone() + random*torch.randn_like(x)
 
     def SetBias(self, x=None, random=0.):
-        if x!=None:
+        if x is not None:
             self.bias = x.clone().detach()
         else:
             self.bias = torch.randn(self.n, dtype=torch.float32, device=self.device) * random
